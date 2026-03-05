@@ -81,33 +81,27 @@ API docs:
 - Calendar page can call `GET /api/v1/calendar/month` and `/day/{date}`
 - Task detail page can call `GET /api/v1/tasks/{task_id}?date=YYYY-MM-DD`
 
-## 6. Deploy on Render
-
-This repo is ready for Render deployment via GitHub:
-
-- `render.yaml` is included
-- Start command uses Render's `$PORT`
-- `.python-version` pins Python `3.11.9`
-
-### Steps
+## 6. Deploy on Render Web Service
 
 1. Push this repo to GitHub.
-2. In Render, create a **Blueprint** (or **Web Service**) from this repository.
-3. Set required environment variables:
+2. In Render, create a **Web Service** from this repository.
+3. Set commands:
+   - Build: `pip install -r requirements.txt`
+   - Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Set required environment variables:
    - `DATABASE_URL` (Neon connection string with SSL)
    - `CORS_ORIGINS` (your frontend domain, comma-separated if multiple)
    - `JWT_SECRET_KEY` (recommended, otherwise app uses a weak fallback default)
-4. Optional for Google Calendar:
+5. Optional for Google Calendar:
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
    - `GOOGLE_REDIRECT_URI` (must match your Render backend callback URL)
-5. Deploy.
+6. Deploy.
 
 Health check endpoint:
 
 - `GET /health`
 
-### Render Web Service Notes
+Notes:
 
-- This backend can run as a normal Render Web Service (not only Blueprint).
 - If you paste Neon in `psql 'postgresql://...'` format, backend will normalize it automatically.

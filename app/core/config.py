@@ -1,8 +1,9 @@
 from functools import lru_cache
-from typing import Any
+import json
+from typing import Annotated, Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -23,7 +24,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000"]
+    )
 
     default_timezone: str = "America/Toronto"
     calendar_locale: str = "en-CA"
@@ -31,17 +34,39 @@ class Settings(BaseSettings):
     google_client_id: str | None = None
     google_client_secret: str | None = None
     google_redirect_uri: str | None = None
-    google_scopes: list[str] = Field(
+    google_scopes: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["https://www.googleapis.com/auth/calendar.events"]
     )
 
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _parse_cors_origins(cls, value: Any) -> list[str]:
+        def normalize_origin(origin: str) -> str:
+            cleaned = origin.strip().strip("'").strip('"').rstrip("/")
+            if not cleaned:
+                return ""
+            if cleaned.startswith(("http://", "https://")):
+                return cleaned
+            if cleaned.startswith("localhost") or cleaned.startswith("127.0.0.1"):
+                return f"http://{cleaned}"
+            return f"https://{cleaned}"
+
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            raw = value.strip()
+            items: list[str]
+            if raw.startswith("[") and raw.endswith("]"):
+                try:
+                    parsed = json.loads(raw)
+                    items = [str(item) for item in parsed]
+                except json.JSONDecodeError:
+                    items = [piece for piece in raw.split(",")]
+            else:
+                items = [piece for piece in raw.split(",")]
+            normalized = [normalize_origin(origin) for origin in items]
+            return [origin for origin in normalized if origin]
         if isinstance(value, list):
-            return value
+            normalized = [normalize_origin(str(origin)) for origin in value]
+            return [origin for origin in normalized if origin]
         raise ValueError("Invalid CORS origins format.")
 
     @field_validator("database_url", mode="before")

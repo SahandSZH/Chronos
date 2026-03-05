@@ -17,7 +17,9 @@ class Settings(BaseSettings):
 
     database_url: str
 
-    jwt_secret_key: str
+    # Keep a non-empty default so Render Web Service can boot even if user forgets this env var.
+    # For production, set JWT_SECRET_KEY explicitly in Render.
+    jwt_secret_key: str = "change-this-jwt-secret-in-render"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
 
@@ -42,6 +44,32 @@ class Settings(BaseSettings):
             return value
         raise ValueError("Invalid CORS origins format.")
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalize_database_url(cls, value: Any) -> str:
+        if not isinstance(value, str):
+            raise ValueError("DATABASE_URL must be a string.")
+
+        raw = value.strip()
+
+        # Allow pasting Neon CLI/psql format:
+        # psql 'postgresql://...'
+        if raw.lower().startswith("psql "):
+            raw = raw[5:].strip()
+
+        if (raw.startswith("'") and raw.endswith("'")) or (
+            raw.startswith('"') and raw.endswith('"')
+        ):
+            raw = raw[1:-1].strip()
+
+        # SQLAlchemy engine in this app uses psycopg driver.
+        if raw.startswith("postgresql://"):
+            raw = raw.replace("postgresql://", "postgresql+psycopg://", 1)
+        elif raw.startswith("postgres://"):
+            raw = raw.replace("postgres://", "postgresql+psycopg://", 1)
+
+        return raw
+
     @field_validator("google_scopes", mode="before")
     @classmethod
     def _parse_google_scopes(cls, value: Any) -> list[str]:
@@ -57,4 +85,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

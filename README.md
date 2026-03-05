@@ -96,6 +96,7 @@ This repo is ready for Render deployment via GitHub:
 3. Set required environment variables:
    - `DATABASE_URL` (Neon connection string with SSL)
    - `CORS_ORIGINS` (your frontend domain, comma-separated if multiple)
+   - `JWT_SECRET_KEY` (recommended, otherwise app uses a weak fallback default)
 4. Optional for Google Calendar:
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
@@ -105,3 +106,8 @@ This repo is ready for Render deployment via GitHub:
 Health check endpoint:
 
 - `GET /health`
+
+### Render Web Service Notes
+
+- This backend can run as a normal Render Web Service (not only Blueprint).
+- If you paste Neon in `psql 'postgresql://...'` format, backend will normalize it automatically.

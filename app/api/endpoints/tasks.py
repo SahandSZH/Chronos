@@ -8,11 +8,11 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models import User
 from app.schemas import (
-    ForgottenResponse,
+    ForgottenTask,
     TaskCompletionUpdate,
     TaskCreate,
-    TaskDayResponse,
     TaskDetail,
+    TaskSummary,
     TaskUpdate,
 )
 from app.services.task_service import (
@@ -29,36 +29,35 @@ from app.services.task_service import (
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-@router.get("/today", response_model=TaskDayResponse)
+@router.get("/today", response_model=list[TaskSummary])
 def today_tasks(
     date_override: date | None = Query(default=None, alias="date"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> TaskDayResponse:
+) -> list[TaskSummary]:
     target = date_override or get_user_today(current_user)
-    return TaskDayResponse(date=target, tasks=list_tasks_for_day(db, current_user, target))
+    return list_tasks_for_day(db, current_user, target)
 
 
-@router.get("/day/{target_date}", response_model=TaskDayResponse)
+@router.get("/day/{target_date}", response_model=list[TaskSummary])
 def tasks_for_day(
     target_date: date,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> TaskDayResponse:
-    return TaskDayResponse(date=target_date, tasks=list_tasks_for_day(db, current_user, target_date))
+) -> list[TaskSummary]:
+    return list_tasks_for_day(db, current_user, target_date)
 
 
-@router.get("/forgotten", response_model=ForgottenResponse)
+@router.get("/forgotten", response_model=list[ForgottenTask])
 def forgotten_tasks(
     until_date: date | None = Query(default=None),
     lookback_days: int = Query(default=180, ge=1, le=3650),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> ForgottenResponse:
-    items = list_forgotten_tasks(
+) -> list[ForgottenTask]:
+    return list_forgotten_tasks(
         db=db, user=current_user, until_date=until_date, lookback_days=lookback_days
     )
-    return ForgottenResponse(tasks=items)
 
 
 @router.post("/", response_model=TaskDetail, status_code=status.HTTP_201_CREATED)
@@ -110,4 +109,3 @@ def update_task_completion(
     current_user: User = Depends(get_current_user),
 ) -> TaskDetail:
     return set_task_completion(db, current_user, task_id, payload.date, payload.done)
-

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 class Token(BaseModel):
     access_token: str
+    token: str | None = None
     token_type: str = "bearer"
 
 

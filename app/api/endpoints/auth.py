@@ -41,7 +41,7 @@ def _issue_token_for_user(user: User) -> Token:
         subject=str(user.id),
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
     )
-    return Token(access_token=token)
+    return Token(access_token=token, token=token)
 
 
 def _authenticate_user(db: Session, raw_email: str, raw_password: str) -> User:

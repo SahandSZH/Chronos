@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )
+    cors_allow_origin_regex: str | None = r"^https://.*\.lovable\.app$"
 
     default_timezone: str = "America/Toronto"
     calendar_locale: str = "en-CA"

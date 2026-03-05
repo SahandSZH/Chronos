@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.db.session import get_db
 from app.models import User
-from app.schemas import Token, UserCreate, UserLogin, UserRead
+from app.schemas import Token, UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -44,35 +44,56 @@ def _issue_token_for_user(user: User) -> Token:
     return Token(access_token=token)
 
 
+def _authenticate_user(db: Session, raw_email: str, raw_password: str) -> User:
+    email = raw_email.strip().lower()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None or not verify_password(raw_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
 @router.post("/login", response_model=Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ) -> Token:
-    email = form_data.username.lower()
-    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
-    if user is None or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    user = _authenticate_user(db, form_data.username, form_data.password)
     return _issue_token_for_user(user)
 
 
 @router.post("/login-json", response_model=Token)
-def login_json(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
-    user = db.execute(select(User).where(User.email == payload.email.lower())).scalar_one_or_none()
-    if user is None or not verify_password(payload.password, user.hashed_password):
+async def login_json(request: Request, db: Session = Depends(get_db)) -> Token:
+    payload: dict = {}
+    content_type = request.headers.get("content-type", "").lower()
+
+    if "application/json" in content_type:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+    if not payload:
+        try:
+            form_data = await request.form()
+            payload = dict(form_data)
+        except Exception:
+            payload = {}
+
+    email = payload.get("email") or payload.get("username")
+    password = payload.get("password")
+    if not email or not password:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password.",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide email (or username) and password.",
         )
+
+    user = _authenticate_user(db, str(email), str(password))
     return _issue_token_for_user(user)
 
 
 @router.get("/me", response_model=UserRead)
 def me(current_user: User = Depends(get_current_user)) -> User:
     return current_user
-
